@@ -57,6 +57,21 @@ public class HandlerServer extends HandlerBase {
     protected void onRemotePacket(Packet packet) {
         String id = packet.getId();
 
+        if (id.equals("init")) {
+            try {
+                channel = serverBootstrap.bind(host, port)
+                        .sync().channel().closeFuture().channel();
+            } catch (InterruptedException e) {
+                throw new IllegalStateException(e);
+            }
+
+            if (logger.isInfoEnabled()) {
+                logger.info("Netty server started: host={}, port={}", host, port);
+            }
+
+            return;
+        }
+
         Channel channel = channels.get(id);
         if (channel == null) {
             logger.warn("Channel is no longer manageable: {}", id);
@@ -76,16 +91,16 @@ public class HandlerServer extends HandlerBase {
 
     @Override
     protected void onStart() {
-        try {
-            channel = serverBootstrap.bind(host, port)
-                    .sync().channel().closeFuture().channel();
-        } catch (InterruptedException e) {
-            throw new IllegalStateException(e);
-        }
-
-        if (logger.isInfoEnabled()) {
-            logger.info("Netty server started: host={}, port={}", host, port);
-        }
+//        try {
+//            channel = serverBootstrap.bind(host, port)
+//                    .sync().channel().closeFuture().channel();
+//        } catch (InterruptedException e) {
+//            throw new IllegalStateException(e);
+//        }
+//
+//        if (logger.isInfoEnabled()) {
+//            logger.info("Netty server started: host={}, port={}", host, port);
+//        }
     }
 
     @Override

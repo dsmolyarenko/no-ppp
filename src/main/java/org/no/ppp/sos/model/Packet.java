@@ -1,13 +1,16 @@
 package org.no.ppp.sos.model;
 
 import java.io.IOException;
+import java.io.Serializable;
 import java.io.UncheckedIOException;
 
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 
-public class Packet {
+public class Packet implements Serializable {
+
+    private static final long serialVersionUID = 15L;
 
     private String id;
 
@@ -74,7 +77,7 @@ public class Packet {
 
     @Override
     public String toString() {
-        return getClass().getSimpleName() + ":" + asString();
+        return "Packet [id=" + id + (data != null ? ", data=" + data.length : "") + (open ? ", open" : "") + (close ? ", close" : "") + "]";
     }
 
     public static Packet of(String string) {

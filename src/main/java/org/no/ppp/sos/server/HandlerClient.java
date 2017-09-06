@@ -93,6 +93,7 @@ public class HandlerClient extends HandlerBase {
         if (logger.isInfoEnabled()) {
             logger.info("Netty client is targeted on: {}:{}", host, port);
         }
+        outgoingPacketQueue.offer(new Packet("init"));
     }
 
 }

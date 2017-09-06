@@ -2,8 +2,11 @@ package org.no.ppp.sos.server;
 
 import static io.netty.buffer.ByteBufUtil.getBytes;
 
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
 import java.util.HashMap;
@@ -13,6 +16,7 @@ import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.no.ppp.sos.model.Packet;
+import org.no.ppp.sos.util.Utils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -87,7 +91,7 @@ public abstract class HandlerBase {
                 }
             }
             try {
-                Thread.sleep(100);
+                Thread.sleep(50);
             } catch (InterruptedException e) {
                 break;
             }
@@ -115,7 +119,7 @@ public abstract class HandlerBase {
     /**
      * Channel local dictionary.
      */
-    private Map<ChannelId, String> ids = new HashMap<>();
+    private Map<ChannelId, String> ids = new ConcurrentHashMap<>();
 
     protected String getChannelId(Channel channel) {
         return ids.get(channel.id());
@@ -171,7 +175,14 @@ public abstract class HandlerBase {
             @Override
             public void channelRead(ChannelHandlerContext ctx, Object msg) {
                 String id = getChannelId(ctx.channel());
-                outgoingPacketQueue.offer(new Packet(id).setData(getBytes((ByteBuf) msg)));
+                outgoingPacketQueue.offer(new Packet(id).setData(Utils.getBytes((ByteBuf) msg)));
+
+                try {
+                    Thread.sleep(50);
+                } catch (InterruptedException e) {
+                    // TODO Auto-generated catch block
+                    e.printStackTrace();
+                }
             }
         };
     }
@@ -204,5 +215,14 @@ public abstract class HandlerBase {
     protected abstract void onRemotePacket(Packet packet);
 
     protected Logger logger = LoggerFactory.getLogger(getClass());
+
+    public static void main(String[] args) throws FileNotFoundException, IOException {
+        try (ObjectOutputStream stream = new ObjectOutputStream(new FileOutputStream("test1.bin"))) {
+            stream.writeObject(new Packet("1x"));
+        }
+        try (ObjectOutputStream stream = new ObjectOutputStream(new FileOutputStream("test2.bin"))) {
+            stream.writeObject(new Packet("2xx"));
+        }
+    }
 
 }
