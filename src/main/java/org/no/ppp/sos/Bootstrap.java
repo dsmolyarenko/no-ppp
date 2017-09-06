@@ -1,25 +1,13 @@
 package org.no.ppp.sos;
 
 import java.io.File;
-import java.io.FileInputStream;
 import java.io.FileNotFoundException;
-import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
-import java.io.PipedInputStream;
-import java.io.PipedOutputStream;
 import java.io.PrintWriter;
-import java.io.RandomAccessFile;
-import java.io.UncheckedIOException;
-import java.nio.ByteBuffer;
 import java.nio.file.Files;
-import java.nio.file.OpenOption;
 import java.nio.file.StandardOpenOption;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
-import java.util.concurrent.locks.Condition;
-import java.util.concurrent.locks.ReentrantLock;
 
 import org.apache.commons.cli.CommandLine;
 import org.apache.commons.cli.DefaultParser;
@@ -28,13 +16,8 @@ import org.apache.commons.cli.Option;
 import org.apache.commons.cli.Options;
 import org.apache.commons.cli.ParseException;
 import org.apache.logging.log4j.core.lookup.MainMapLookup;
-import org.no.ppp.sos.model.Packet;
 import org.no.ppp.sos.server.HandlerClient;
 import org.no.ppp.sos.server.HandlerServer;
-
-import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
-import io.netty.buffer.Unpooled;
 
 public class Bootstrap {
 
@@ -93,78 +76,7 @@ public class Bootstrap {
             if (iPath.equals("-")) {
                 is = System.in;
             } else {
-
-                ExecutorService es = Executors.newFixedThreadPool(1);
-
-                File file = prepareFile(iPath);
-
-                is = new InputStream() {
-                    private int position = 0;
-                    private ByteBuf bb = Unpooled.buffer(65536);
-                    private ReentrantLock streamLock = new ReentrantLock();
-                    private Condition conditionBufferNotEmpty = streamLock.newCondition();
-
-                    @Override
-                    public int read() throws IOException {
-                        streamLock.lock();
-                        try {
-                            if (bb.readableBytes() == 0) {
-                                es.submit(() -> {
-                                    try {
-                                        updateBuffer();
-                                    } catch (IOException e) {
-                                        throw new UncheckedIOException(e);
-                                    }
-                                });
-                                if (bb.readableBytes() == 0) { // check again
-                                    conditionBufferNotEmpty.await();
-                                }
-                            }
-                            if (bb.readableBytes() > 0) {
-                                return bb.readByte() & 0xFF;
-                            }
-                        } catch (InterruptedException e) {
-                            return -1;
-                        } finally {
-                            streamLock.unlock();
-                        }
-                        return -1;
-                    }
-
-                    private void updateBuffer() throws IOException {
-                        byte[] bytes = new byte[8192];
-                        while (true) {
-                            try (RandomAccessFile f = new RandomAccessFile(file, "r")) {
-                                f.seek(position);
-                                int l;
-                                while (true) {
-                                    l = f.read(bytes);
-                                    if (l > 0) {
-                                        position += l;
-                                        bb.writeBytes(Unpooled.wrappedBuffer(bytes, 0, l));
-                                    }
-                                    if (l < bytes.length) {
-                                        break;
-                                    }
-                                }
-                                if (bb.readableBytes() > 0) {
-                                    streamLock.lock();
-                                    try {
-                                        conditionBufferNotEmpty.signal();
-                                    } finally {
-                                        streamLock.unlock();
-                                    }
-                                    return;
-                                }
-                            }
-                            try {
-                                Thread.sleep(50);
-                            } catch (InterruptedException e) {
-                                break;
-                            }
-                        }
-                    }
-                };
+                is = new FileTileInputStream(prepareFile(iPath));
             }
 
             String oPath = cl.getOptionValue("o", "-");
