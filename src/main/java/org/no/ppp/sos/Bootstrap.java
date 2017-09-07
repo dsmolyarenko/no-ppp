@@ -18,6 +18,7 @@ import org.apache.commons.cli.ParseException;
 import org.apache.logging.log4j.core.lookup.MainMapLookup;
 import org.no.ppp.sos.server.HandlerClient;
 import org.no.ppp.sos.server.HandlerServer;
+import org.no.ppp.sos.util.FileTileInputStream;
 
 public class Bootstrap {
 
@@ -76,7 +77,8 @@ public class Bootstrap {
             if (iPath.equals("-")) {
                 is = System.in;
             } else {
-                is = new FileTileInputStream(prepareFile(iPath));
+                File file = prepareFile(iPath);
+                is = new FileTileInputStream(file);
             }
 
             String oPath = cl.getOptionValue("o", "-");

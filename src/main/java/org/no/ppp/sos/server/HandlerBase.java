@@ -1,7 +1,5 @@
 package org.no.ppp.sos.server;
 
-import static io.netty.buffer.ByteBufUtil.getBytes;
-
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.IOException;
@@ -9,7 +7,6 @@ import java.io.InputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
 import java.io.PrintWriter;
-import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
@@ -21,8 +18,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import io.netty.buffer.ByteBuf;
-import io.netty.buffer.ByteBufUtil;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelDuplexHandler;
 import io.netty.channel.ChannelHandlerContext;
@@ -45,15 +40,23 @@ public abstract class HandlerBase {
 
     protected HandlerBase(InputStream is, OutputStream os) throws IOException {
 
-        incoming = new Thread(() -> {
-            logger.info("Pump task started.");
-            try {
-                startStreamToQueuePump(is, this::onRemotePacket);
-            } catch (Exception e) {
-                logger.warn("Pump task was interrupted by exception", e);
-                throw new RuntimeException(e);
+        incoming = new Thread(new Runnable() {
+            @Override
+            public void run() {
+                logger.info("Pump task started.");
+                try {
+                    startStreamToQueuePump(is, new Consumer<Packet>() {
+                        @Override
+                        public void accept(Packet p) {
+                            onRemotePacket(p);
+                        }
+                    });
+                } catch (Exception e) {
+                    logger.warn("Pump task was interrupted by exception", e);
+                    throw new RuntimeException(e);
+                }
+                logger.info("Pump task finished.");
             }
-            logger.info("Pump task finished.");
         });
         incoming.setName("incoming");
 
@@ -71,29 +74,22 @@ public abstract class HandlerBase {
     }
 
     protected void startStreamToQueuePump(InputStream stream, Consumer<Packet> consumer) throws IOException {
-        ByteBuf buffer = Unpooled.buffer();
+        int length = 0;
+
+        byte[] buffer = new byte[65536];
         while (true) {
-            int b;
-            while ((b = stream.read()) != -1) {
-                if (b == '\r' || b == '\n') {
-                    if (buffer.readableBytes() == 0) {
-                        continue;
-                    }
-                    byte[] bytes = ByteBufUtil.getBytes(buffer);
-                    buffer.clear();
-                    Packet packet = Packet.of(bytes);
-                    if (logger.isInfoEnabled()) {
-                        logger.info("<== " + packet);
-                    }
-                    consumer.accept(packet);
-                } else {
-                    buffer.writeByte(b);
+            int b = stream.read(); // assumption that operation is blocking
+            if (b == '\r' || b == '\n') {
+                if (length == 0) {
+                    continue;
                 }
-            }
-            try {
-                Thread.sleep(50);
-            } catch (InterruptedException e) {
-                break;
+                Packet packet = Packet.of(buffer, 0, length); length = 0;
+                if (logger.isInfoEnabled()) {
+                    logger.info("<== " + packet);
+                }
+                consumer.accept(packet);
+            } else {
+                buffer[length++] = (byte) b;
             }
         }
     }
@@ -178,7 +174,7 @@ public abstract class HandlerBase {
                 outgoingPacketQueue.offer(new Packet(id).setData(Utils.getBytes((ByteBuf) msg)));
 
                 try {
-                    Thread.sleep(50);
+                    Thread.sleep(200);
                 } catch (InterruptedException e) {
                     // TODO Auto-generated catch block
                     e.printStackTrace();

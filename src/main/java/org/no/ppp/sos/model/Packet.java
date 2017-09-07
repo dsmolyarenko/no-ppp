@@ -63,8 +63,8 @@ public class Packet implements Serializable {
         return this;
     }
 
-    public static Packet of(byte[] bytes) throws IOException {
-        return om.readValue(bytes, Packet.class);
+    public static Packet of(byte[] bytes, int offset, int length) throws IOException {
+        return om.readValue(bytes, offset, length, Packet.class);
     }
 
     public String asString() {

@@ -1,4 +1,4 @@
-package org.no.ppp.sos;
+package org.no.ppp.sos.util;
 
 import java.io.File;
 import java.io.IOException;
@@ -10,7 +10,7 @@ import java.util.concurrent.locks.ReentrantLock;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 
-public final class FileTileInputStream extends InputStream {
+public final class FileTileInputStreamAsync extends InputStream {
 
     private int position = 0;
 
@@ -24,7 +24,7 @@ public final class FileTileInputStream extends InputStream {
 
     private Thread watchThread;
 
-    public FileTileInputStream(File file) {
+    public FileTileInputStreamAsync(File file) {
         watchThread = new Thread(new Runnable() {
             @Override
             public void run() {
@@ -46,19 +46,19 @@ public final class FileTileInputStream extends InputStream {
                                     if (l > 0) {
                                         position += l;
                                         buffer.writeBytes(Unpooled.wrappedBuffer(bytes, 0, l));
+
+                                        // unlock consumers
+                                        streamLock.lock();
+                                        try {
+                                            conditionBufferNotEmpty.signal();
+                                        } finally {
+                                            streamLock.unlock();
+                                        }
+                                        break b;
                                     }
                                     if (l < bytes.length) {
                                         break;
                                     }
-                                }
-                                if (buffer.readableBytes() > 0) {
-                                    streamLock.lock();
-                                    try {
-                                        conditionBufferNotEmpty.signal();
-                                    } finally {
-                                        streamLock.unlock();
-                                    }
-                                    break b;
                                 }
                             }
                             try {
