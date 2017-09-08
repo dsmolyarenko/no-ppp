@@ -16,9 +16,7 @@ public class Packet implements Serializable {
 
     private byte[] data;
 
-    boolean open;
-
-    boolean close;
+    private Type type = Type.DATA;
 
     public Packet() {
     }
@@ -45,21 +43,12 @@ public class Packet implements Serializable {
         return this;
     }
 
-    public boolean isOpen() {
-        return open;
+    public Type getType() {
+        return type;
     }
 
-    public Packet setOpen(boolean open) {
-        this.open = open;
-        return this;
-    }
-
-    public boolean isClose() {
-        return close;
-    }
-
-    public Packet setClose(boolean close) {
-        this.close = close;
+    public Packet setType(Type type) {
+        this.type = type;
         return this;
     }
 
@@ -77,7 +66,7 @@ public class Packet implements Serializable {
 
     @Override
     public String toString() {
-        return "Packet [id=" + id + (data != null ? ", data=" + data.length : "") + (open ? ", open" : "") + (close ? ", close" : "") + "]";
+        return "Packet [c=" + id + (type != Type.DATA ? ", " + type.name().toLowerCase() : "") + (data != null ? ", data=" + data.length : "") + "]";
     }
 
     public static Packet of(String string) {
@@ -86,6 +75,14 @@ public class Packet implements Serializable {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+    }
+
+    public enum Type {
+        DATA,
+        OPEN,
+        CLOSE,
+        ERROR,
+        ;
     }
 
     private static ObjectMapper om = new ObjectMapper().setSerializationInclusion(Include.NON_DEFAULT);

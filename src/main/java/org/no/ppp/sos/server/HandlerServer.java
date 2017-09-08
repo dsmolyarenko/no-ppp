@@ -5,9 +5,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import org.no.ppp.sos.model.Packet;
+import org.no.ppp.sos.model.Packet.Type;
 
 import io.netty.bootstrap.ServerBootstrap;
-import io.netty.buffer.Unpooled;
 import io.netty.channel.Channel;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
@@ -49,62 +49,34 @@ public class HandlerServer extends HandlerBase {
     }
 
     @Override
-    protected String getChannelId(Channel channel) {
-        return channel.id().asShortText();
+    protected void onChannelOpen(ChannelContext channelContext) {
+        outgoingPacketQueue.offer(new Packet(channelContext.getId()).setType(Type.OPEN));
     }
 
     @Override
-    protected void onRemotePacket(Packet packet) {
-        String id = packet.getId();
-
-        if (id.equals("init")) {
-            try {
-                channel = serverBootstrap.bind(host, port)
-                        .sync().channel().closeFuture().channel();
-            } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
-            }
-
-            if (logger.isInfoEnabled()) {
-                logger.info("Netty server started: host={}, port={}", host, port);
-            }
-
+    protected void onData(Packet p) {
+        if (p.getId().equals("init")) {
+            onDeferredStart();
             return;
         }
+        super.onData(p);
+    }
 
-        Channel channel = channels.get(id);
-        if (channel == null) {
-            logger.warn("Channel is no longer manageable: {}", id);
-            return;
+    protected void onDeferredStart() {
+        try {
+            channel = serverBootstrap.bind(host, port)
+                    .sync().channel().closeFuture().channel();
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
         }
 
-        if (packet.isClose()) {
-            channel.attr(A_I).set(true);
-            channel.close();
-            return;
-        }
-
-        if (packet.getData() != null) {
-            channel.writeAndFlush(Unpooled.wrappedBuffer(packet.getData()));
+        if (logger.isInfoEnabled()) {
+            logger.info("Netty server started: host={}, port={}", host, port);
         }
     }
 
     @Override
-    protected void onStart() {
-//        try {
-//            channel = serverBootstrap.bind(host, port)
-//                    .sync().channel().closeFuture().channel();
-//        } catch (InterruptedException e) {
-//            throw new IllegalStateException(e);
-//        }
-//
-//        if (logger.isInfoEnabled()) {
-//            logger.info("Netty server started: host={}, port={}", host, port);
-//        }
-    }
-
-    @Override
-    public void stop() throws InterruptedException {
+    public void onStop() throws InterruptedException {
         channel.close().sync();
 
         parentGroup.shutdownGracefully();

@@ -42,6 +42,7 @@ public final class FileTileInputStream extends InputStream {
                 try {
                     Thread.sleep(50);
                 } catch (InterruptedException e) {
+                    readPosition = -1; // reading is finished
                     return;
                 }
             }
@@ -57,6 +58,9 @@ public final class FileTileInputStream extends InputStream {
         if (first || readPosition == bytePosition) {
             fill();
             first = false;
+        }
+        if (readPosition == -1) {
+            return -1;
         }
         return bytes[readPosition++] & 0xFF;
     }

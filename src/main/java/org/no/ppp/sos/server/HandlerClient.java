@@ -5,11 +5,13 @@ import java.io.InputStream;
 import java.io.OutputStream;
 
 import org.no.ppp.sos.model.Packet;
+import org.no.ppp.sos.util.CustomChannelId;
 
 import io.netty.bootstrap.Bootstrap;
 import io.netty.buffer.Unpooled;
-import io.netty.channel.Channel;
+import io.netty.channel.ChannelFactory;
 import io.netty.channel.ChannelFuture;
+import io.netty.channel.ChannelId;
 import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.ChannelPipeline;
@@ -35,56 +37,47 @@ public class HandlerClient extends HandlerBase {
         this.port = port;
 
         workerGroup = new NioEventLoopGroup(8);
-        b = new Bootstrap().channel(NioSocketChannel.class).option(ChannelOption.SO_KEEPALIVE, true).group(workerGroup)
-                .handler(new ChannelInitializer<SocketChannel>() {
-                    @Override
-                    public void initChannel(SocketChannel ch) throws Exception {
-                        ChannelPipeline channelPipeline = ch.pipeline();
-                        channelPipeline.addLast(createChannelHandler());
+        b = new Bootstrap().channelFactory((ChannelFactory<?>) () -> new NioSocketChannel() {
+            @Override
+            protected ChannelId newId() {
+                try {
+                    if (remoteChannelId == null) {
+                        throw new IllegalStateException();
                     }
-                });
+                    return new CustomChannelId(remoteChannelId);
+                } finally {
+                    remoteChannelId = null;
+                }
+            }
+        }).option(ChannelOption.SO_KEEPALIVE, true).group(workerGroup)
+            .handler(new ChannelInitializer<SocketChannel>() {
+                @Override
+                public void initChannel(SocketChannel ch) throws Exception {
+                    ChannelPipeline channelPipeline = ch.pipeline();
+                    channelPipeline.addLast(createChannelHandler());
+                }
+            });
     }
 
+    private String remoteChannelId;
+
     @Override
-    protected void onRemotePacket(Packet packet) {
-        if (packet.isOpen()) {
-            ChannelFuture channelFuture = b.connect(host, port);
+    protected synchronized void onOpen(Packet p) {
+        remoteChannelId = p.getId();
 
-            Channel channel = channelFuture.channel();
-            channel.attr(A_I).set(true);
+        ChannelFuture channelFuture = b.connect(host, port);
 
-            setChannelId(channel, packet.getId()); // a trick
-
-            if (logger.isInfoEnabled()) {
-                logger.info("Connecting to {}:{} ...", host, port);
-            }
-            try {
-                channelFuture.sync();
-            } catch (InterruptedException e) {
-                throw new IllegalStateException(e);
-            }
-            if (logger.isInfoEnabled()) {
-                logger.info("Connected");
-            }
-            return;
+        if (logger.isInfoEnabled()) {
+            logger.info("Connecting to {}:{} ...", host, port);
         }
-
-        String id = packet.getId();
-
-        Channel channel = channels.get(id);
-        if (channel == null) {
-            logger.warn("Channel is no longer manageable: {}", id);
-            return;
+        try {
+            channelFuture.sync();
+            channelFuture.channel().writeAndFlush(Unpooled.EMPTY_BUFFER).sync();
+        } catch (InterruptedException e) {
+            throw new IllegalStateException(e);
         }
-
-        if (packet.isClose()) {
-            channel.attr(A_I).set(true);
-            channel.close();
-            return;
-        }
-
-        if (packet.getData() != null) {
-            channel.writeAndFlush(Unpooled.wrappedBuffer(packet.getData()));
+        if (logger.isInfoEnabled()) {
+            logger.info("Connected");
         }
     }
 
