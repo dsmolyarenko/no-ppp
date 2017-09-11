@@ -84,7 +84,7 @@ public abstract class HandlerBase {
     protected void startStreamToQueuePump(InputStream stream, Consumer<Packet> consumer) throws IOException {
         int length = 0;
 
-        byte[] buffer = new byte[65536];
+        byte[] buffer = new byte[65536 * 2];
         while (true) {
             int b = stream.read(); // assumption that operation is blocking
             if (b == -1) {
@@ -94,7 +94,8 @@ public abstract class HandlerBase {
                 if (length == 0) {
                     continue;
                 }
-                Packet packet = Packet.of(buffer, 0, length); length = 0;
+                Packet packet = Packet.of(buffer, 0, length);
+                length = 0;
                 if (logger.isInfoEnabled()) {
                     logger.info("<== " + packet);
                 }
